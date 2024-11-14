@@ -645,7 +645,8 @@ def main():
     try:
         qdarktheme.enable_hi_dpi()
 
-        app = QApplication(sys.argv + ["-platform", "windows:darkmode=2"])
+        # app = QApplication(sys.argv + ["-platform", "windows:darkmode=2"])
+        app = QApplication(sys.argv + ["-platform", "cocoa"])  # Use cocoa for macOS
         app.setAttribute(
             QtCore.Qt.ApplicationAttribute.AA_DisableWindowContextHelpButton
         )
@@ -663,6 +664,16 @@ def main():
         MainWindow = QtWidgets.QMainWindow()
         ui = TorfGUI()
         ui.setupUi(MainWindow)
+
+        # Wrap the main widget in a QScrollArea
+        scroll_area = QtWidgets.QScrollArea()
+        scroll_area.setWidget(MainWindow.centralWidget())
+        scroll_area.setWidgetResizable(True)
+        MainWindow.setCentralWidget(scroll_area)
+        
+        # Allow resizing by setting size constraints
+        MainWindow.setMinimumSize(400, 300)  # Set any minimum size (width, height)
+        MainWindow.setMaximumSize(QtWidgets.QWIDGETSIZE_MAX, QtWidgets.QWIDGETSIZE_MAX)  # Allows unlimited resizing
 
         MainWindow.setWindowTitle(PROGRAM_NAME_VERSION)
 
