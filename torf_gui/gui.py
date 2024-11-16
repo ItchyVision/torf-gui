@@ -4,6 +4,7 @@ import json
 import os
 import stat
 import sys
+import platform  # added to help detect OS
 from datetime import datetime
 from fnmatch import fnmatch
 
@@ -87,14 +88,33 @@ class CreateTorrentBatchQThread(QtCore.QThread):
         self.comment = comment
         self.include_md5 = include_md5
 
-    def has_hidden_attribute(self, filepath):
-        return bool(
-            os.stat(filepath).st_file_attributes & stat.FILE_ATTRIBUTE_HIDDEN
-        )
+    #def has_hidden_attribute(self, filepath):
+    #    return bool(
+    #        os.stat(filepath).st_file_attributes & stat.FILE_ATTRIBUTE_HIDDEN
+    #    )
 
+    ## Added to detect OS and support macOS/Linux ##
+    def has_hidden_attribute(self, filepath):
+        if platform.system() == "Windows":
+           # Windows-specific code
+           import stat
+           return bool(os.stat(filepath).st_file_attributes & stat.FILE_ATTRIBUTE_HIDDEN)
+        else:
+           # On macOS/Linux, use a simpler approach (e.g., check for dotfiles)
+           return os.path.basename(filepath).startswith(".")
+    ## End of new code ##
+    
+
+    #def is_hidden_file(self, path):
+    #    name = os.path.basename(os.path.abspath(path))
+    #    return name.startswith(".") or self.has_hidden_attribute(path)
+    
+    ## Updated to detect OS and support macOS/Linux ##
     def is_hidden_file(self, path):
-        name = os.path.basename(os.path.abspath(path))
-        return name.startswith(".") or self.has_hidden_attribute(path)
+         name = os.path.basename(path)
+         return name.startswith(".") or self.has_hidden_attribute(path)
+    ## End of new code ##
+
 
     def run(self):
         def callback(*args):
@@ -645,11 +665,28 @@ def main():
     try:
         qdarktheme.enable_hi_dpi()
 
-        app = QApplication(sys.argv + ["-platform", "windows:darkmode=2"])
+        # app = QApplication(sys.argv + ["-platform", "windows:darkmode=2"])
+        # app = QApplication(sys.argv + ["-platform", "cocoa"])  # Use cocoa for macOS
+        # app.setAttribute(
+        #    QtCore.Qt.ApplicationAttribute.AA_DisableWindowContextHelpButton
+        # )
+        
+        if platform.system() == "Windows":
+            # Windows-specific platform argument
+            app = QApplication(sys.argv + ["-platform", "windows:darkmode=2"])
+        elif platform.system() == "Darwin":
+            # macOS-specific platform argument
+            app = QApplication(sys.argv + ["-platform", "cocoa"])
+        else:
+            # Default for Linux or other systems
+            app = QApplication(sys.argv)
+    
         app.setAttribute(
             QtCore.Qt.ApplicationAttribute.AA_DisableWindowContextHelpButton
         )
 
+
+        # import qdarktheme
         qdarktheme.setup_theme("auto")
 
         # Hack for https://github.com/5yutan5/PyQtDarkTheme/issues/229
@@ -663,6 +700,16 @@ def main():
         MainWindow = QtWidgets.QMainWindow()
         ui = TorfGUI()
         ui.setupUi(MainWindow)
+        
+        # Wrap the main widget in a QScrollArea
+        scroll_area = QtWidgets.QScrollArea()
+        scroll_area.setWidget(MainWindow.centralWidget())
+        scroll_area.setWidgetResizable(True)
+        MainWindow.setCentralWidget(scroll_area)
+        
+        # Allow resizing by setting size constraints
+        MainWindow.setMinimumSize(400, 300)  # Set any minimum size (width, height)
+        MainWindow.setMaximumSize(QtWidgets.QWIDGETSIZE_MAX, QtWidgets.QWIDGETSIZE_MAX)  # Allows unlimited resizing
 
         MainWindow.setWindowTitle(PROGRAM_NAME_VERSION)
 
