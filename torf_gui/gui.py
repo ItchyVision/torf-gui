@@ -8,6 +8,7 @@ import platform  # added to help detect OS
 from datetime import datetime
 from fnmatch import fnmatch
 
+import unicodedata # Added a Normalization Utility Function, ensures file paths are consistent across platforms
 import humanfriendly
 import qdarktheme
 import torf
@@ -23,6 +24,12 @@ PROGRAM_NAME_VERSION = f"{PROGRAM_NAME} {__version__}"
 CREATOR = f"torf-gui/{__version__} (https://github.com/SavageCore/torf-gui)"
 
 PIECE_SIZES = [None] + [2**i for i in range(14, 27)]
+
+# Utility functions
+def normalize_path(path):
+    """Normalize Unicode strings to NFC (macOS-friendly)."""
+    return unicodedata.normalize('NFC', path)
+# End of new code
 
 if getattr(sys, "frozen", False):
     _basedir = sys._MEIPASS
@@ -111,8 +118,12 @@ class CreateTorrentBatchQThread(QtCore.QThread):
     
     ## Updated to detect OS and support macOS/Linux ##
     def is_hidden_file(self, path):
+        """Check if a file is hidden."""
          name = os.path.basename(path)
-         return name.startswith(".") or self.has_hidden_attribute(path)
+         # return name.startswith(".") or self.has_hidden_attribute(path)
+            if name.startswith("."):
+        return True
+    return False
     ## End of new code ##
 
 
