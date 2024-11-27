@@ -4,11 +4,11 @@ import json
 import os
 import stat
 import sys
-import platform  # added to help detect OS
+import platform  # added to fix batch mode code for macOS
 from datetime import datetime
 from fnmatch import fnmatch
 
-import unicodedata # Added a Normalization Utility Function, ensures file paths are consistent across platforms
+import unicodedata  # Added a Normalization Utility Function, ensures file paths are consistent across platforms
 import humanfriendly
 import qdarktheme
 import torf
@@ -51,7 +51,8 @@ class CreateTorrentQThread(QtCore.QThread):
         def progress_callback(*args):
             # Args: torrent, filepath, piece_count, piece_total
             # Emit: filename, piece_count, piece_total
-            filename = os.path.split(args[1])[1]
+            # filename = os.path.split(args[1])[1]
+            filename = os.path.split(normalize_path(args[1]))[1]   # normalize args[1]
             self.progress_update.emit(filename, args[2], args[3])
             return None
 
@@ -84,7 +85,8 @@ class CreateTorrentBatchQThread(QtCore.QThread):
         include_md5,
     ):
         super().__init__()
-        self.path = path
+        #self.path = path
+        self.path = normalize_path(path)   # normalize path
         self.exclude = exclude
         self.save_dir = save_dir
         self.trackers = trackers
@@ -100,7 +102,7 @@ class CreateTorrentBatchQThread(QtCore.QThread):
     #        os.stat(filepath).st_file_attributes & stat.FILE_ATTRIBUTE_HIDDEN
     #    )
 
-    ## Added to detect OS and support macOS/Linux ##
+    ## Added to detect OS and support macOS ##
     def has_hidden_attribute(self, filepath):
         if platform.system() == "Windows":
            # Windows-specific code
@@ -116,16 +118,15 @@ class CreateTorrentBatchQThread(QtCore.QThread):
     #    name = os.path.basename(os.path.abspath(path))
     #    return name.startswith(".") or self.has_hidden_attribute(path)
     
-    ## Updated to detect OS and support macOS/Linux ##
+    ## Updated to detect OS and support macOS ##
     def is_hidden_file(self, path):
-        """Check if a file is hidden."""
+         """Check if a file is hidden."""
          name = os.path.basename(path)
          # return name.startswith(".") or self.has_hidden_attribute(path)
-            if name.startswith("."):
-        return True
-    return False
+         if name.startswith("."):
+             return True
+         return False
     ## End of new code ##
-
 
     def run(self):
         def callback(*args):
@@ -133,12 +134,14 @@ class CreateTorrentBatchQThread(QtCore.QThread):
 
         self.success = False
 
-        entries = os.listdir(self.path)
+        # entries = os.listdir(self.path)
+        entries = os.listdir(normalize_path(self.path))  # Normalize self.path directly in this line to ensure it's safe and compatible, even if something earlier missed normalization
 
         for i, p in enumerate(entries):
             if any(fnmatch(p, ex) for ex in self.exclude):
                 continue
-            p = os.path.join(self.path, p)
+            # p = os.path.join(self.path, p)
+            p = normalize_path(p)  # Normalize the path
 
             if not self.is_hidden_file(p):
                 sfn = os.path.split(p)[1] + ".torrent"
@@ -352,10 +355,12 @@ class TorfGUI(Ui_MainWindow):
         if qfd.exec_():
             fn = qfd.selectedFiles()[0]
             self.inputEdit.setText(fn)
+            fn = normalize_path(fn)   # Normalize fn before splitting
             self.last_input_dir = os.path.split(fn)[0]
             self.initializeTorrent()
-
+    
     def injectInputPath(self, path):
+        path = normalize_path(path)  # Normalize the path at the start of the function
         if os.path.exists(path):
             if os.path.isfile(path):
                 self.fileRadioButton.setChecked(True)
@@ -369,6 +374,7 @@ class TorfGUI(Ui_MainWindow):
                 self.batchModeCheckBox.setEnabled(True)
                 self.batchModeCheckBox.show()
             self.inputEdit.setText(path)
+            path = normalize_path(path)  # Normalize path before splitting
             self.last_input_dir = os.path.split(path)[0]
             self.initializeTorrent()
 
@@ -381,13 +387,15 @@ class TorfGUI(Ui_MainWindow):
         event.ignore()
 
     def inputDropEvent(self, event):
-        path = event.mimeData().urls()[0].toLocalFile()
+        # path = event.mimeData().urls()[0].toLocalFile()
+        path = normalize_path(event.mimeData().urls()[0].toLocalFile())  # normalize path for drag-and-drop
         self.injectInputPath(path)
 
     def pasteInput(self):
         mimeData = self.clipboard().mimeData()
         if mimeData.hasText():
-            path = mimeData.text().strip("'\"")
+            # path = mimeData.text().strip("'\"")
+            path = normalize_path(mimeData.text().strip("'\\\""))  # Add normalization
             self.injectInputPath(path)
 
     def batchModeChanged(self, state):
@@ -414,7 +422,8 @@ class TorfGUI(Ui_MainWindow):
             self.torrent = None
             self._showError(str(e))
             return
-        ptail = os.path.split(self.torrent.path)[1]
+        # ptail = os.path.split(self.torrent.path)[1]
+        ptail = os.path.split(normalize_path(self.torrent.path))[1]  # Normalize self.torrent.path
         if self.inputMode == "file":
             self._statusBarMsg(
                 f"{ptail}: {humanfriendly.format_size(t_info[0], binary=True)}"
@@ -502,8 +511,10 @@ class TorfGUI(Ui_MainWindow):
             )
         else:
             save_fn = self.inputEdit.text().split(os.sep)[-1] + ".torrent"
-        if self.last_output_dir and os.path.exists(self.last_output_dir):
-            save_fn = os.path.join(self.last_output_dir, save_fn)
+        # if self.last_output_dir and os.path.exists(self.last_output_dir):
+        if self.last_output_dir and os.path.exists(normalize_path(self.last_output_dir)):  # already normalized earlier, this ensures it’s safe at runtime, catching any unexpected modifications
+            # save_fn = os.path.join(self.last_output_dir, save_fn)
+            save_fn = os.path.join(normalize_path(self.last_output_dir), save_fn)  # Normalize here as a safety net if you're not sure about earlier normalization
         fn = QtWidgets.QFileDialog.getSaveFileName(
             self.MainWindow,
             "Save torrent",
@@ -528,7 +539,8 @@ class TorfGUI(Ui_MainWindow):
             trackers = self.trackerEdit.toPlainText().strip().split()
             web_seeds = self.webSeedEdit.toPlainText().strip().split()
             self.creation_thread = CreateTorrentBatchQThread(
-                path=self.inputEdit.text(),
+                # path=self.inputEdit.text(),
+                path=normalize_path(self.inputEdit.text()),   # Added normalization
                 exclude=self.excludeEdit.toPlainText().strip().splitlines(),
                 save_dir=save_dir,
                 trackers=trackers,
@@ -551,6 +563,7 @@ class TorfGUI(Ui_MainWindow):
         self.creation_thread.terminate()
 
     def _progress_update(self, fn, pc, pt):
+        fn = normalize_path(fn)    # Normalize fn before splitting
         fn = os.path.split(fn)[1]
         msg = f"{fn} ({pc}/{pt})"
         self.updateProgress(msg, int(round(100 * pc / pt)))
