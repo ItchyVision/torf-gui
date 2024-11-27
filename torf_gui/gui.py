@@ -27,7 +27,10 @@ PIECE_SIZES = [None] + [2**i for i in range(14, 27)]
 
 # Utility functions
 def normalize_path(path):
-    """Normalize Unicode strings to NFC (macOS-friendly)."""
+    """Normalize Unicode strings to NFC."""
+    import unicodedata
+    if not isinstance(path, str):
+        path = str(path)  # Convert PosixPath or other types to string
     return unicodedata.normalize('NFC', path)
 # End of new code
 
@@ -147,7 +150,7 @@ class CreateTorrentBatchQThread(QtCore.QThread):
                 sfn = os.path.split(p)[1] + ".torrent"
                 self.progress_update.emit(sfn, i, len(entries))
                 t = torf.Torrent(
-                    path=p,
+                    path=self.path,  # Check how self.path is being assigned
                     exclude_globs=self.exclude,
                     trackers=self.trackers,
                     webseeds=self.web_seeds,
